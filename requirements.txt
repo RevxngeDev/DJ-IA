@@ -1,0 +1,7 @@
+﻿librosa==0.10.2
+numpy<2.0
+scipy
+soundfile
+pydub
+tqdm
+mutagen
