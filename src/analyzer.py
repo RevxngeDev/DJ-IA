@@ -84,8 +84,21 @@ def analyze_track(filepath: str) -> dict:
 
     # Detección de BPM y posiciones de beats
     tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
-    # tempo puede venir como array en algunas versiones de librosa
     bpm = float(tempo) if np.isscalar(tempo) else float(tempo[0])
+    
+    # Tempo folding: reggaeton/urbano latino vive en 80-110 BPM.
+    # Solo consideramos errores de doble-octava (mitad/doble), no de triple.
+    # Rango objetivo estrecho para forzar al selector al pocket correcto.
+    TARGET_CENTER = 95.0
+    candidates = [bpm, bpm / 2.0, bpm * 2.0]
+    # Rango musical realista: casi nada de urbano latino vive fuera de 75-130
+    candidates = [c for c in candidates if 75 <= c <= 130]
+    if candidates:
+        bpm = min(candidates, key=lambda c: abs(c - TARGET_CENTER))
+    else:
+        # Si ningún candidato cae en rango, forzamos el más cercano a 95
+        bpm = min([bpm, bpm / 2.0, bpm * 2.0], key=lambda c: abs(c - TARGET_CENTER))
+
     beats = librosa.frames_to_time(beat_frames, sr=sr).tolist()
 
     # Downbeats: cada 4 beats (asumiendo 4/4, estándar en reggaetón/trap/pop)
@@ -95,18 +108,20 @@ def analyze_track(filepath: str) -> dict:
     key, mode = estimate_key(y, sr)
     camelot = to_camelot(key, mode)
 
-    # Energía: basada en RMS (root mean square), normalizada entre 0 y 1
-    rms = librosa.feature.rms(y=y).mean()
-    energy = float(np.clip(rms * 10, 0, 1))
+    # Energía: combinación de RMS (volumen) y centroide espectral (brillo).
+    # Escala logarítmica para distribuir mejor entre 0 y 1.
+    rms = float(librosa.feature.rms(y=y).mean())
+    spectral_centroid = float(librosa.feature.spectral_centroid(y=y, sr=sr).mean())
+    # RMS típico va de ~0.01 a ~0.3; lo llevamos a escala perceptual
+    rms_score = float(np.clip(np.log1p(rms * 100) / np.log1p(30), 0, 1))
+    # Centroide típico 1000-4000 Hz; normalizamos
+    brightness_score = float(np.clip((spectral_centroid - 1000) / 3000, 0, 1))
+    energy = round(float(0.6 * rms_score + 0.4 * brightness_score), 3)
 
-    # Danceability: basada en la regularidad del onset (ataque rítmico)
-    # Un ritmo muy regular = alta danceability (bueno para reggaetón)
+    # Danceability: qué tan fuerte y regular es el pulso rítmico
     onset_env = librosa.onset.onset_strength(y=y, sr=sr)
-    mean_onset = onset_env.mean()
-    if mean_onset > 0:
-        danceability = float(np.clip(onset_env.std() / mean_onset, 0, 1))
-    else:
-        danceability = 0.0
+    pulse = librosa.beat.plp(onset_envelope=onset_env, sr=sr)
+    danceability = round(float(np.clip(pulse.mean() * 2, 0, 1)), 3)
 
     # Leer metadata del archivo
     tags = read_tags(filepath)
