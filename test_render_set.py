@@ -1,14 +1,14 @@
 """Genera un set completo mezclado desde una setlist de Fase 2."""
-from src.selector import generate_setlist, print_setlist
+import time
+
+from src.selector import generate_setlist
 from src.mixer import render_set
 
-# 1. Generar setlist (20 minutos para que la prueba no tarde una eternidad)
 print("Generando setlist...")
 setlist = generate_setlist(duration_minutes=20)
-print_setlist(setlist)
 
-# 2. Renderizar el set completo en un MP3
 output = "my_first_dj_set.mp3"
+start = time.time()
 render_set(
     setlist=setlist,
     output_path=output,
@@ -16,5 +16,5 @@ render_set(
     lead_in_seconds=12.0,
     tail_seconds=12.0,
 )
-print(f"\nArchivo generado: {output}")
-print("Reproducelo en cualquier reproductor y disfruta tu primer set mezclado!")
+elapsed = time.time() - start
+print(f"\nTiempo total: {elapsed:.1f} segundos ({elapsed / 60:.2f} min)")

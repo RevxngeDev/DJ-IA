@@ -7,13 +7,20 @@ from src.database import get_conn
 from src.camelot import compatible_camelots
 
 
-# --- Configuracion del selector ---
-BPM_TOLERANCE = 0.06          # +-6% de BPM para considerar compatible
-ENERGY_WEIGHT = 2.0           # cuanto pesa la energia en el score
-BPM_WEIGHT = 1.5              # cuanto pesa la cercania de BPM
-CAMELOT_PERFECT_BONUS = 3.0   # bonus si la key es perfectamente compatible
-CAMELOT_OK_PENALTY = 1.5      # penalizacion si no esta en las compatibles
-SAME_ALBUM_PENALTY = 1.0      # penalizacion por mismo album consecutivo
+from src.config import (
+    BPM_TOLERANCE,
+    ENERGY_WEIGHT,
+    BPM_WEIGHT,
+    CAMELOT_PERFECT_BONUS,
+    CAMELOT_OK_PENALTY,
+    SAME_ALBUM_PENALTY,
+    STAGNATION_PENALTY,
+    ARTIST_DIVERSITY_BONUS,
+    ENERGY_MIN,
+    ENERGY_MAX,
+    ENERGY_END,
+    ENERGY_PEAK_POSITION_DEFAULT,
+)
 
 
 def load_library() -> list[dict]:
@@ -26,23 +33,17 @@ def load_library() -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def target_energy_for_position(position: float, peak_position: float = 0.65) -> float:
-    """Curva de energia tipo arco: sube hasta el peak y luego baja.
-
-    position: 0.0 (inicio) a 1.0 (final del set)
-    peak_position: donde cae el pico de energia (default 65% del set)
-
-    Retorna energia objetivo entre 0.4 y 0.95.
-    """
+def target_energy_for_position(
+    position: float,
+    peak_position: float = ENERGY_PEAK_POSITION_DEFAULT,
+) -> float:
+    """Curva de energia tipo arco: sube hasta el peak y luego baja."""
     if position <= peak_position:
-        # Rampa ascendente: 0.45 -> 0.95
         t = position / peak_position
-        return 0.45 + (0.95 - 0.45) * (t ** 0.8)
+        return ENERGY_MIN + (ENERGY_MAX - ENERGY_MIN) * (t ** 0.8)
     else:
-        # Rampa descendente: 0.95 -> 0.55
         t = (position - peak_position) / (1 - peak_position)
-        return 0.95 - (0.95 - 0.55) * (t ** 1.2)
-
+        return ENERGY_MAX - (ENERGY_MAX - ENERGY_END) * (t ** 1.2)
 
 def bpm_compatible(bpm_a: float, bpm_b: float) -> bool:
     """Dos BPMs son compatibles si estan dentro de +-BPM_TOLERANCE."""
@@ -81,7 +82,7 @@ def score_candidate(
     if recent_camelots:
         same_count = sum(1 for c in recent_camelots[-2:] if c == candidate["camelot"])
         if same_count >= 2:
-            score -= 4.0  # fuerte penalizacion para forzar variedad
+            score -= STAGNATION_PENALTY
 
     # Energia
     energy_diff = abs((candidate["energy"] or 0.5) - target_energy)
@@ -98,8 +99,7 @@ def score_candidate(
     # Bonus por artista no repetido recientemente
     if recent_artists and candidate.get("artist"):
         if candidate["artist"] not in recent_artists[-3:]:
-            score += 0.5
-
+            score += ARTIST_DIVERSITY_BONUS
     return score
 
 def generate_setlist(

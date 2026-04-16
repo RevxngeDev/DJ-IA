@@ -1,7 +1,7 @@
 """Transicion DJ profesional: crossfade con bass swap."""
 import numpy as np
 
-from src.audio_utils import apply_eq_3band
+from src.audio_utils import apply_eq_3band, split_3band
 
 
 def crossfade_with_bass_swap(
@@ -191,17 +191,13 @@ def mix_two_tracks(
     a_mids_gain = np.concatenate([ones_lead, mids_out_cf])
     a_highs_gain = np.concatenate([ones_lead, highs_out_cf])
 
-    # --- Separar A en 3 bandas y aplicar las curvas ---
-    a_lows = apply_eq_3band(a_slice, sr, low_gain=1.0, mid_gain=0.0, high_gain=0.0)
-    a_mids = apply_eq_3band(a_slice, sr, low_gain=0.0, mid_gain=1.0, high_gain=0.0)
-    a_highs = apply_eq_3band(a_slice, sr, low_gain=0.0, mid_gain=0.0, high_gain=1.0)
+    # --- Separar A en 3 bandas (calcula los 3 filtros una sola vez) ---
+    a_lows, a_mids, a_highs = split_3band(a_slice, sr)
     a_mix = a_lows * a_lows_gain + a_mids * a_mids_gain + a_highs * a_highs_gain
 
-    # --- Separar la zona de crossfade de B y aplicar curvas ---
+    # --- Separar la zona de crossfade de B en 3 bandas ---
     b_cf = b_slice[:, :cf_n]
-    b_cf_lows = apply_eq_3band(b_cf, sr, low_gain=1.0, mid_gain=0.0, high_gain=0.0)
-    b_cf_mids = apply_eq_3band(b_cf, sr, low_gain=0.0, mid_gain=1.0, high_gain=0.0)
-    b_cf_highs = apply_eq_3band(b_cf, sr, low_gain=0.0, mid_gain=0.0, high_gain=1.0)
+    b_cf_lows, b_cf_mids, b_cf_highs = split_3band(b_cf, sr)
     b_cf_mix = (
         b_cf_lows * lows_in_cf
         + b_cf_mids * mids_in_cf

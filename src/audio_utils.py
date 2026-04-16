@@ -137,3 +137,22 @@ def apply_eq_3band(
     mids = _butter_filter(y, sr, [low_cut, high_cut], "band")
 
     return (lows * low_gain + mids * mid_gain + highs * high_gain).astype(np.float32)
+
+def split_3band(
+    y: np.ndarray,
+    sr: int,
+    low_cut: float = 250.0,
+    high_cut: float = 4000.0,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Separa una senal en sus 3 bandas: lows, mids, highs.
+
+    Mas eficiente que llamar apply_eq_3band 3 veces, porque calcula los
+    3 filtros una sola vez. Util cuando necesitamos las 3 bandas separadas
+    para aplicar ganancias independientes despues.
+
+    Retorna (lows, mids, highs), cada uno con la misma forma que y.
+    """
+    lows = _butter_filter(y, sr, low_cut, "low")
+    highs = _butter_filter(y, sr, high_cut, "high")
+    mids = _butter_filter(y, sr, [low_cut, high_cut], "band")
+    return lows, mids, highs
